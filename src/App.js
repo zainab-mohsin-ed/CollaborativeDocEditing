@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 
-const WEBSOCKET_URL = "<API_URL>";
+const WEBSOCKET_URL = "<WEB_SOCKET_URL>";
+const DOC_ID = "doc111"; 
 
-const App = () => {
-    const [docId] = useState("doc123");
+const CollaborativeEditor = ({ connectionId }) => {
     const [content, setContent] = useState("");
     const textAreaRef = useRef(null);
     const socketRef = useRef(null);
@@ -12,21 +12,21 @@ const App = () => {
     const lastSentText = useRef(""); // Store last sent text
     const pendingChanges = useRef([]); // Buffer updates
     const buffer = useRef(""); // Buffer for word batching
-    const isRemoteUpdate = useRef(false); // ✅ NEW: Prevent re-sending updates from WebSocket
+    const isRemoteUpdate = useRef(false); // ✅ Prevent re-sending updates from WebSocket
 
     useEffect(() => {
         // Open WebSocket connection
         socketRef.current = new WebSocket(WEBSOCKET_URL);
 
         socketRef.current.onopen = () => {
-            console.log("WebSocket connected");
+            console.log(`WebSocket ${connectionId} connected`);
         };
 
         socketRef.current.onmessage = (event) => {
             const message = JSON.parse(event.data);
-            console.log("Received update:", message);
+            console.log(`Received update on ${connectionId}:`, message);
 
-            if (message.docId === docId) {
+            if (message.docId === DOC_ID) {
                 const updatedContent = applyOperationalTransformation(message.changes);
 
                 if (updatedContent !== contentRef.current) {
@@ -38,13 +38,13 @@ const App = () => {
         };
 
         socketRef.current.onclose = () => {
-            console.log("WebSocket disconnected");
+            console.log(`WebSocket ${connectionId} disconnected.`);
         };
 
         return () => {
             socketRef.current.close();
         };
-    }, [docId]);
+    }, []);
 
     // 🛠 Apply Operational Transformation (OT)
     const applyOperationalTransformation = (changes) => {
@@ -66,17 +66,17 @@ const App = () => {
 
         const updateMessage = {
             action: "MESSAGE",
-            docId,
+            docId: DOC_ID,
             changes: pendingChanges.current,
         };
 
         if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-            console.log("Sending WebSocket message:", updateMessage);
+            console.log(`Sending update from ${connectionId}:`, updateMessage);
             socketRef.current.send(JSON.stringify(updateMessage));
             pendingChanges.current = []; // Clear the buffer after sending
             lastSentText.current = contentRef.current; // Update last sent text
         } else {
-            console.warn("WebSocket not ready, retrying in 100ms...");
+            console.warn(`WebSocket ${connectionId} not ready, retrying...`);
             setTimeout(sendUpdate, 100);
         }
     };
@@ -133,16 +133,28 @@ const App = () => {
     }, []);
 
     return (
-        <div style={{ padding: "20px" }}>
-            <h2>Collaborative Document Editor</h2>
+        <div style={{ padding: "10px", border: "1px solid #ddd", margin: "10px" }}>
+            <h3>Editor {connectionId}</h3>
             <textarea
                 ref={textAreaRef}
                 value={content}
                 onChange={handleEdit}
                 rows="10"
                 cols="50"
-                style={{ width: "100%", height: "300px" }}
+                style={{ width: "100%", height: "200px" }}
             />
+        </div>
+    );
+};
+
+const App = () => {
+    return (
+        <div style={{ padding: "20px" }}>
+            <h2>Collaborative Document Editor</h2>
+            <div style={{ display: "flex", gap: "20px" }}>
+                <CollaborativeEditor connectionId="A" />
+                <CollaborativeEditor connectionId="B" />
+            </div>
         </div>
     );
 };
